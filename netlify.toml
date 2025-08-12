@@ -7,7 +7,6 @@ from = "/share/*"
 to = "/.netlify/functions/share?id=:splat"
 status = 200
 
-# Schedule the cleanup function to run daily at 03:00 UTC
 [[scheduled.functions]]
 name = "cleanup"
 cron = "0 3 * * *"
