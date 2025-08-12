@@ -19,6 +19,8 @@
     #qr { background: #0f0f18; padding: 12px; border-radius: 12px; display: inline-block; }
     .muted { color: #a5a5c3; font-size: 14px; }
     a { color: #aab2ff; }
+    #status.err { color: #ffb3b3; }
+    progress { width: 100%; height: 8px; }
   </style>
 </head>
 <body>
@@ -26,37 +28,60 @@
     <header><h1>Upload an Album</h1><span class="muted">One QR for multiple photos</span></header>
     <div class="content">
       <div class="row"><label for="token" class="muted">Admin Token</label><input id="token" type="password" placeholder="Paste ADMIN_UPLOAD_TOKEN"/></div>
-      <p></p>
+      <p class="muted">Tip: Set <code>ADMIN_UPLOAD_TOKEN</code> in Netlify env vars and paste the same value here.</p>
       <input id="files" type="file" accept="image/*" multiple/>
       <button id="upload">Upload</button>
       <p id="status" class="muted"></p>
+      <progress id="prog" max="100" value="0" style="display:none;"></progress>
       <div id="result" style="display:none;">
         <p>Share URL: <a id="url" href="#" target="_blank" rel="noopener"></a></p>
         <div id="qr"></div>
       </div>
+      <details style="margin-top:12px;"><summary class="muted">Debug</summary><pre id="debug" style="white-space:pre-wrap;color:#a5a5c3;"></pre></details>
     </div>
   </div>
 
   <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script>
+    function show(msg, isErr=false){ const s=document.getElementById('status'); s.textContent=msg; s.classList.toggle('err', !!isErr); }
+    function logd(x){ const d=document.getElementById('debug'); d.textContent += (typeof x==='string'?x:JSON.stringify(x,null,2)) + "\n"; }
+
     document.getElementById('upload').addEventListener('click', async () => {
       const files = document.getElementById('files').files;
       const token = document.getElementById('token').value.trim();
-      if (!files.length || !token) { alert('Select files and paste the admin token.'); return; }
+      if (!files.length) { show('Pick at least one image', true); return; }
+      if (!token) { show('Paste your ADMIN_UPLOAD_TOKEN', true); return; }
+
+      show('Uploading...'); document.getElementById('prog').style.display='block'; document.getElementById('prog').value=20;
       const fd = new FormData();
       for (const f of files) fd.append('files', f, f.name);
-      const r = await fetch('/.netlify/functions/upload', { method: 'POST', headers: { "x-admin-token": token }, body: fd });
-      const j = await r.json();
-      if (j.shareUrl) {
-        document.getElementById('status').textContent = `Uploaded ${j.count} file(s)!`;
-        const a = document.getElementById('url');
-        a.href = j.shareUrl;
-        a.textContent = j.shareUrl;
-        document.getElementById('result').style.display = 'block';
-        document.getElementById('qr').innerHTML = '';
-        new QRCode(document.getElementById("qr"), { text: j.shareUrl, width: 220, height: 220 });
-      } else {
-        document.getElementById('status').textContent = j.error || 'Upload failed.';
+
+      try {
+        const r = await fetch('/.netlify/functions/upload', {
+          method: 'POST',
+          headers: { "x-admin-token": token },
+          body: fd
+        });
+        document.getElementById('prog').value=60;
+        const j = await r.json().catch(()=>({error:'Invalid JSON from function'}));
+        logd(j);
+        if (j.shareUrl) {
+          document.getElementById('prog').value=100;
+          show(`Uploaded ${j.count} file(s)!`);
+          const a = document.getElementById('url');
+          a.href = j.shareUrl;
+          a.textContent = j.shareUrl;
+          document.getElementById('result').style.display = 'block';
+          document.getElementById('qr').innerHTML = '';
+          new QRCode(document.getElementById("qr"), { text: j.shareUrl, width: 220, height: 220 });
+        } else {
+          show(j.error || 'Upload failed.', true);
+        }
+      } catch (e) {
+        show(e.message || 'Network/Function error', true);
+        logd(e);
+      } finally {
+        setTimeout(()=>{ document.getElementById('prog').style.display='none'; }, 800);
       }
     });
   </script>
