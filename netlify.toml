@@ -1,12 +1,3 @@
 [build]
   publish = "public"
   functions = "netlify/functions"
-
-[[redirects]]
-from = "/share/*"
-to = "/.netlify/functions/share?id=:splat"
-status = 200
-
-[[scheduled.functions]]
-name = "cleanup"
-cron = "0 3 * * *"

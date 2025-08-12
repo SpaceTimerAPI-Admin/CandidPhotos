@@ -1,15 +1,7 @@
 export const config = { path: "/.netlify/functions/ping" };
 
-export default async (request) => {
-  return new Response(JSON.stringify({
-    ok: true,
-    method: request.method,
-    url: request.url,
-    env: {
-      HAS_SUPABASE_URL: !!process.env.SUPABASE_URL,
-      HAS_SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE,
-      HAS_ADMIN_UPLOAD_TOKEN: !!process.env.ADMIN_UPLOAD_TOKEN,
-      SNAPCHAT_USERNAME: process.env.SNAPCHAT_USERNAME ? true : false
-    }
-  }), { status: 200, headers: { "content-type": "application/json" }});
+export default async () => {
+  return new Response(JSON.stringify({ ok: true, ts: Date.now() }), {
+    headers: { "content-type": "application/json" }
+  });
 };
