@@ -1,6 +1,6 @@
 import { supabase } from "./_supabase.mjs";
 
-const SNAPCHAT = process.env.SNAPCHAT_USERNAME || ""; // set this in Netlify env to show Snapchat button
+const SNAPCHAT = process.env.SNAPCHAT_USERNAME || ""; // set in Netlify env
 
 const html = (title) => new Response(
   `<!doctype html>
@@ -64,9 +64,9 @@ const html = (title) => new Response(
       </div>
     </div>
     <script>
-      // Add Snapchat button if env var is set
+      // Add Snapchat button if env var was set on the server
       (function addSnap() {
-        const snap = ${JSON.stringify(bool:=True)} ? "${'${SNAPCHAT}'}" : ""; // placeholder, replaced server-side
+        const snap = "${SNAPCHAT}".trim();
         if (snap) {
           const wrap = document.getElementById('socials');
           const a = document.createElement('a');
@@ -74,7 +74,6 @@ const html = (title) => new Response(
           a.target = '_blank';
           a.rel = 'noopener';
           a.textContent = 'Snapchat';
-          // Deep link first, then web fallback
           a.href = 'https://www.snapchat.com/add/' + encodeURIComponent(snap);
           wrap.appendChild(a);
         }
@@ -136,7 +135,7 @@ const html = (title) => new Response(
 export default async (request) => {
   const url = new URL(request.url);
   const id = url.searchParams.get("id") || url.pathname.split("/").filter(Boolean).pop();
-  // Optional: check existence to set the title
+  // Optional: set title based on existence
   let title = "Photo Download";
   if (id && id !== "share") {
     const { data: row } = await supabase.from("photos").select("*").eq("id", id).maybeSingle();
