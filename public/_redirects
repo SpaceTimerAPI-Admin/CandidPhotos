@@ -1,1 +1,1 @@
-/share/:id   /.netlify/functions/share?id=:id  200
+/share/*   /.netlify/functions/share?id=:splat   200
