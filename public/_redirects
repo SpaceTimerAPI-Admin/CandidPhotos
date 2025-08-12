@@ -1,1 +1,1 @@
-/share/:id   /.netlify/functions/share  200
+/share/:id   /.netlify/functions/share?id=:id  200
