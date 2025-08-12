@@ -1,0 +1,8 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+# Optional: schedule a daily cleanup at 03:00 UTC
+[[scheduled.functions]]
+  name = "cleanup"
+  cron = "0 3 * * *"
