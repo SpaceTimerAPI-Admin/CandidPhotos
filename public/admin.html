@@ -21,6 +21,8 @@
     a { color: #aab2ff; }
     #status.err { color: #ffb3b3; }
     progress { width: 100%; height: 8px; }
+    code { background:#111421; padding:2px 6px; border-radius:6px; }
+    .row2 { display:flex; gap:8px; margin-top:8px; }
   </style>
 </head>
 <body>
@@ -28,6 +30,9 @@
     <header><h1>Upload an Album</h1><span class="muted">One QR for multiple photos</span></header>
     <div class="content">
       <div class="row"><label for="token" class="muted">Admin Token</label><input id="token" type="password" placeholder="Paste ADMIN_UPLOAD_TOKEN"/></div>
+      <div class="row2">
+        <button id="health">Check function health</button>
+      </div>
       <p class="muted">Tip: Set <code>ADMIN_UPLOAD_TOKEN</code> in Netlify env vars and paste the same value here.</p>
       <input id="files" type="file" accept="image/*" multiple/>
       <button id="upload">Upload</button>
@@ -46,6 +51,26 @@
     function show(msg, isErr=false){ const s=document.getElementById('status'); s.textContent=msg; s.classList.toggle('err', !!isErr); }
     function logd(x){ const d=document.getElementById('debug'); d.textContent += (typeof x==='string'?x:JSON.stringify(x,null,2)) + "\n"; }
 
+    async function readAsJsonOrText(r){
+      const text = await r.text();
+      try { return { data: JSON.parse(text), raw: text, status: r.status }; }
+      catch { return { data: null, raw: text, status: r.status }; }
+    }
+
+    document.getElementById('health').addEventListener('click', async () => {
+      show('Pinging function...');
+      try {
+        const r = await fetch('/.netlify/functions/upload'); // GET
+        const out = await readAsJsonOrText(r);
+        logd(out);
+        if (out.data) show('Function is responding with JSON ✓');
+        else show('Function responded, but not JSON (see Debug).', true);
+      } catch (e) {
+        show('Health check failed: ' + (e.message||e), true);
+        logd(e);
+      }
+    });
+
     document.getElementById('upload').addEventListener('click', async () => {
       const files = document.getElementById('files').files;
       const token = document.getElementById('token').value.trim();
@@ -62,20 +87,19 @@
           headers: { "x-admin-token": token },
           body: fd
         });
-        document.getElementById('prog').value=60;
-        const j = await r.json().catch(()=>({error:'Invalid JSON from function'}));
-        logd(j);
-        if (j.shareUrl) {
+        const out = await readAsJsonOrText(r);
+        logd(out);
+        if (out.data && out.data.shareUrl) {
           document.getElementById('prog').value=100;
-          show(`Uploaded ${j.count} file(s)!`);
+          show(\`Uploaded \${out.data.count} file(s)!\`);
           const a = document.getElementById('url');
-          a.href = j.shareUrl;
-          a.textContent = j.shareUrl;
+          a.href = out.data.shareUrl;
+          a.textContent = out.data.shareUrl;
           document.getElementById('result').style.display = 'block';
           document.getElementById('qr').innerHTML = '';
-          new QRCode(document.getElementById("qr"), { text: j.shareUrl, width: 220, height: 220 });
+          new QRCode(document.getElementById("qr"), { text: out.data.shareUrl, width: 220, height: 220 });
         } else {
-          show(j.error || 'Upload failed.', true);
+          show(out.data?.error || 'Upload failed. See Debug for raw response.', true);
         }
       } catch (e) {
         show(e.message || 'Network/Function error', true);

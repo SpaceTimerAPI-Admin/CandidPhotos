@@ -3,11 +3,17 @@ import { supabase, jsonResponse } from "./_supabase.mjs";
 export const config = { path: "/.netlify/functions/upload", maxDuration: 26 };
 
 export default async (request) => {
-  const token = request.headers.get("x-admin-token");
-  if (!token || token !== process.env.ADMIN_UPLOAD_TOKEN) {
-    return jsonResponse({ error: "Unauthorized: missing or invalid ADMIN_UPLOAD_TOKEN" }, 401);
-  }
   try {
+    if (request.method === "GET") {
+      // Health check endpoint so admin page can confirm JSON responses
+      return jsonResponse({ ok: true, method: "GET", message: "Upload function alive" });
+    }
+
+    const token = request.headers.get("x-admin-token");
+    if (!token || token !== process.env.ADMIN_UPLOAD_TOKEN) {
+      return jsonResponse({ error: "Unauthorized: missing or invalid ADMIN_UPLOAD_TOKEN" }, 401);
+    }
+
     const ctype = request.headers.get("content-type") || "";
     if (!ctype.includes("multipart/form-data")) {
       return jsonResponse({ error: "Use multipart/form-data" }, 400);
