@@ -8,7 +8,8 @@ export default async (request) => {
     env: {
       HAS_SUPABASE_URL: !!process.env.SUPABASE_URL,
       HAS_SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE,
-      HAS_ADMIN_UPLOAD_TOKEN: !!process.env.ADMIN_UPLOAD_TOKEN
+      HAS_ADMIN_UPLOAD_TOKEN: !!process.env.ADMIN_UPLOAD_TOKEN,
+      SNAPCHAT_USERNAME: process.env.SNAPCHAT_USERNAME ? true : false
     }
   }), { status: 200, headers: { "content-type": "application/json" }});
 };

@@ -1,7 +1,12 @@
 {
-  "name": "follow-to-unlock-single",
+  "name": "candidphotos-single-photo",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step needed'"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0"
   }

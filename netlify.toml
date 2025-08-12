@@ -1,8 +1,17 @@
 [build]
-publish = "public"
-functions = "netlify/functions"
+  publish = "public"
+  functions = "netlify/functions"
 
+# Pretty URLs: /share/<id> -> function with id=:splat
 [[redirects]]
 from = "/share/*"
 to = "/.netlify/functions/share?id=:splat"
 status = 200
+
+# Bundle with esbuild (default) and allow longer execution window if needed
+[functions]
+  node_bundler = "esbuild"
+
+# Optional: daily cleanup at 03:00 UTC
+[[functions."cleanup"].scheduled]]
+cron = "0 3 * * *"
