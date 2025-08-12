@@ -1,23 +1,113 @@
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Upload & Generate QR</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<style>body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;padding:24px;background:#0b0b10;color:#eaeaf0}.card{max-width:720px;margin:0 auto;background:#151522;border:1px solid #222235;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.35)}header{padding:20px 24px;border-bottom:1px solid #222235;display:flex;align-items:center;justify-content:space-between}h1{font-size:18px;margin:0}.content{padding:24px}input,button{padding:12px;border-radius:10px;border:1px solid #2a2a44;background:#0f0f18;color:#eaeaf0}button{background:#635bff;border:0;font-weight:600;cursor:pointer}.row{display:flex;gap:8px;align-items:center}#qr{background:#0f0f18;padding:12px;border-radius:12px;display:inline-block}.muted{color:#a5a5c3;font-size:14px}a{color:#aab2ff}</style>
-</head><body><div class="card"><header><h1>Upload a Photo</h1><span class="muted">Creates a 30-day link</span></header>
-<div class="content">
-<div class="row"><label for="token" class="muted">Admin Token</label><input id="token" type="password" placeholder="Paste ADMIN_UPLOAD_TOKEN"/></div><p></p>
-<input id="file" type="file" accept="image/*"/><button id="upload">Upload</button><p id="status" class="muted"></p>
-<div id="result" style="display:none;"><p>Share URL: <a id="url" href="#" target="_blank" rel="noopener"></a></p><div id="qr"></div></div>
-</div></div>
-<script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script>
-document.getElementById('upload').addEventListener('click', async ()=>{
-  const file = document.getElementById('file').files[0]; const token=document.getElementById('token').value.trim();
-  if(!file||!token){ alert('Select a file and paste the admin token.'); return; }
-  const fd=new FormData(); fd.append('file', file, file.name);
-  const r = await fetch('/.netlify/functions/upload', { method:'POST', headers:{'x-admin-token': token}, body: fd });
-  const j = await r.json().catch(()=>({error:'Invalid JSON'}));
-  if(j.shareUrl){ document.getElementById('status').textContent='Uploaded!'; const a=document.getElementById('url'); a.href=j.shareUrl; a.textContent=j.shareUrl; document.getElementById('result').style.display='block'; document.getElementById('qr').innerHTML=''; new QRCode(document.getElementById('qr'), { text:j.shareUrl, width:220, height:220 }); } else { document.getElementById('status').textContent=j.error || 'Upload failed.'; }
-});
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Upload Album & Generate QR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; padding: 24px; background: #0b0b10; color: #eaeaf0; }
+    .card { max-width: 720px; margin: 0 auto; background: #151522; border: 1px solid #222235; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+    header { padding: 20px 24px; border-bottom: 1px solid #222235; display: flex; align-items: center; justify-content: space-between; }
+    h1 { font-size: 18px; margin: 0; }
+    .content { padding: 24px; }
+    input, button { padding: 12px; border-radius: 10px; border: 1px solid #2a2a44; background: #0f0f18; color: #eaeaf0; }
+    button { background: #635bff; border: 0; font-weight: 600; cursor: pointer; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    #qr { background: #0f0f18; padding: 12px; border-radius: 12px; display: inline-block; }
+    .muted { color: #a5a5c3; font-size: 14px; }
+    a { color: #aab2ff; }
+    #status.err { color: #ffb3b3; }
+    progress { width: 100%; height: 8px; }
+    code { background:#111421; padding:2px 6px; border-radius:6px; }
+    .row2 { display:flex; gap:8px; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <header><h1>Upload an Album</h1><span class="muted">One QR for multiple photos</span></header>
+    <div class="content">
+      <div class="row"><label for="token" class="muted">Admin Token</label><input id="token" type="password" placeholder="Paste ADMIN_UPLOAD_TOKEN"/></div>
+      <div class="row2">
+        <button id="health">Check function health</button>
+      </div>
+      <p class="muted">Tip: Set <code>ADMIN_UPLOAD_TOKEN</code> in Netlify env vars and paste the same value here.</p>
+      <input id="files" type="file" accept="image/*" multiple/>
+      <button id="upload">Upload</button>
+      <p id="status" class="muted"></p>
+      <progress id="prog" max="100" value="0" style="display:none;"></progress>
+      <div id="result" style="display:none;">
+        <p>Share URL: <a id="url" href="#" target="_blank" rel="noopener"></a></p>
+        <div id="qr"></div>
+      </div>
+      <details style="margin-top:12px;"><summary class="muted">Debug</summary><pre id="debug" style="white-space:pre-wrap;color:#a5a5c3;"></pre></details>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script>
+    function show(msg, isErr=false){ const s=document.getElementById('status'); s.textContent=msg; s.classList.toggle('err', !!isErr); }
+    function logd(x){ const d=document.getElementById('debug'); d.textContent += (typeof x==='string'?x:JSON.stringify(x,null,2)) + "\n"; }
+
+    async function readAsJsonOrText(r){
+      const text = await r.text();
+      try { return { data: JSON.parse(text), raw: text, status: r.status }; }
+      catch { return { data: null, raw: text, status: r.status }; }
+    }
+
+    document.getElementById('health').addEventListener('click', async () => {
+      show('Pinging function...');
+      try {
+        const r = await fetch('/.netlify/functions/upload'); // GET
+        const out = await readAsJsonOrText(r);
+        logd(out);
+        if (out.data) show('Function is responding with JSON ✓');
+        else show('Function responded, but not JSON (see Debug).', true);
+      } catch (e) {
+        show('Health check failed: ' + (e.message||e), true);
+        logd(e);
+      }
+    });
+
+    document.getElementById('upload').addEventListener('click', async () => {
+      const files = document.getElementById('files').files;
+      const token = document.getElementById('token').value.trim();
+      if (!files.length) { show('Pick at least one image', true); return; }
+      if (!token) { show('Paste your ADMIN_UPLOAD_TOKEN', true); return; }
+
+      show('Uploading...'); document.getElementById('prog').style.display='block'; document.getElementById('prog').value=20;
+      const fd = new FormData();
+      for (const f of files) fd.append('files', f, f.name);
+
+      try {
+        const r = await fetch('/.netlify/functions/upload', {
+          method: 'POST',
+          headers: { "x-admin-token": token },
+          body: fd
+        });
+        const out = await readAsJsonOrText(r);
+        logd(out);
+        if (out.data && out.data.shareUrl) {
+          document.getElementById('prog').value=100;
+          show(\`Uploaded \${out.data.count} file(s)!\`);
+          const a = document.getElementById('url');
+          a.href = out.data.shareUrl;
+          a.textContent = out.data.shareUrl;
+          document.getElementById('result').style.display = 'block';
+          document.getElementById('qr').innerHTML = '';
+          new QRCode(document.getElementById("qr"), { text: out.data.shareUrl, width: 220, height: 220 });
+        } else {
+          show(out.data?.error || 'Upload failed. See Debug for raw response.', true);
+        }
+      } catch (e) {
+        show(e.message || 'Network/Function error', true);
+        logd(e);
+      } finally {
+        setTimeout(()=>{ document.getElementById('prog').style.display='none'; }, 800);
+      }
+    });
+  </script>
+</body>
+</html>
