@@ -1,47 +1,54 @@
 import { supabase, jsonResponse } from "./_supabase.mjs";
 
+export const config = { path: "/.netlify/functions/upload" };
+
 export default async (request) => {
-  // Simple admin auth using a static token header
-  const adminToken = process.env.ADMIN_UPLOAD_TOKEN;
-  if (!adminToken || request.headers.get("x-admin-token") !== adminToken) {
+  // Admin token gate
+  const token = request.headers.get("x-admin-token");
+  if (!token || token !== process.env.ADMIN_UPLOAD_TOKEN) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  try {
-    const contentType = request.headers.get("content-type") || "";
-    if (contentType.includes("multipart/form-data")) {
-      const form = await request.formData();
-      const file = form.get("file");
-      if (!file || typeof file === "string") {
-        return jsonResponse({ error: "No file uploaded" }, 400);
-      }
-      const fileName = form.get("filename") || file.name || `photo-${Date.now()}`;
-      const id = crypto.randomUUID();
-      const path = `${id}/${fileName}`;
-
-      // Upload to storage bucket "photos"
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from("photos")
-        .upload(path, file, { upsert: false, contentType: file.type || "application/octet-stream" });
-
-      if (uploadErr) return jsonResponse({ error: uploadErr.message }, 500);
-
-      // Create DB record
-      const expires_at = new Date(Date.now() + 30*24*60*60*1000).toISOString();
-      const { data: row, error: dbErr } = await supabase
-        .from("photos")
-        .insert({ id, path, expires_at })
-        .select()
-        .single();
-
-      if (dbErr) return jsonResponse({ error: dbErr.message }, 500);
-
-      const shareUrl = `${new URL(request.url).origin}/share/${id}`;
-      return jsonResponse({ id, shareUrl });
-    } else {
-      return jsonResponse({ error: "Use multipart/form-data with 'file' field" }, 400);
-    }
-  } catch (e) {
-    return jsonResponse({ error: e.message || "Upload failed" }, 500);
+  const ctype = request.headers.get("content-type") || "";
+  if (!ctype.includes("multipart/form-data")) {
+    return jsonResponse({ error: "Use multipart/form-data" }, 400);
   }
+  const form = await request.formData();
+  const files = form.getAll("files");
+  if (!files || files.length === 0) {
+    // support single 'file' too
+    const single = form.get("file");
+    if (single && typeof single !== "string") {
+      files.push(single);
+    }
+  }
+  if (files.length === 0) {
+    return jsonResponse({ error: "No files uploaded" }, 400);
+  }
+
+  // Create album row with 30 day expiry
+  const albumId = crypto.randomUUID();
+  const expires_at = new Date(Date.now() + 30*24*60*60*1000).toISOString();
+
+  const { error: albumErr } = await supabase.from("albums").insert({ id: albumId, expires_at });
+  if (albumErr) return jsonResponse({ error: albumErr.message }, 500);
+
+  // Upload each file to Storage and create album_items rows
+  const items = [];
+  for (const f of files) {
+    if (!f || typeof f === "string") continue;
+    const name = f.name || `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const path = `${albumId}/${name}`;
+    const { error: upErr } = await supabase.storage.from("photos").upload(path, f, { contentType: f.type || "application/octet-stream", upsert: false });
+    if (upErr) return jsonResponse({ error: upErr.message, hint: "upload" }, 500);
+    const { data: item, error: itemErr } = await supabase.from("album_items").insert({ album_id: albumId, path }).select().single();
+    if (itemErr) return jsonResponse({ error: itemErr.message, hint: "db" }, 500);
+    items.push(item);
+  }
+
+  const origin = new URL(request.url).origin;
+  const shareUrl = `${origin}/share/${albumId}`;
+  const fallbackUrl = `${origin}/.netlify/functions/share?id=${albumId}`;
+
+  return jsonResponse({ albumId, shareUrl, fallbackUrl, count: items.length });
 };

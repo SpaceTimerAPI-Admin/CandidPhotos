@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Upload & Generate QR</title>
+  <title>Upload Album & Generate QR</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
@@ -23,11 +23,11 @@
 </head>
 <body>
   <div class="card">
-    <header><h1>Upload a Photo</h1><span class="muted">Creates a 30-day link</span></header>
+    <header><h1>Upload an Album</h1><span class="muted">One QR for multiple photos</span></header>
     <div class="content">
       <div class="row"><label for="token" class="muted">Admin Token</label><input id="token" type="password" placeholder="Paste ADMIN_UPLOAD_TOKEN"/></div>
       <p></p>
-      <input id="file" type="file" accept="image/*"/>
+      <input id="files" type="file" accept="image/*" multiple/>
       <button id="upload">Upload</button>
       <p id="status" class="muted"></p>
       <div id="result" style="display:none;">
@@ -40,16 +40,15 @@
   <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script>
     document.getElementById('upload').addEventListener('click', async () => {
-      const file = document.getElementById('file').files[0];
+      const files = document.getElementById('files').files;
       const token = document.getElementById('token').value.trim();
-      if (!file || !token) { alert('Select a file and paste the admin token.'); return; }
+      if (!files.length || !token) { alert('Select files and paste the admin token.'); return; }
       const fd = new FormData();
-      fd.append('file', file, file.name);
-      fd.append('filename', file.name);
+      for (const f of files) fd.append('files', f, f.name);
       const r = await fetch('/.netlify/functions/upload', { method: 'POST', headers: { "x-admin-token": token }, body: fd });
       const j = await r.json();
       if (j.shareUrl) {
-        document.getElementById('status').textContent = 'Uploaded!';
+        document.getElementById('status').textContent = `Uploaded ${j.count} file(s)!`;
         const a = document.getElementById('url');
         a.href = j.shareUrl;
         a.textContent = j.shareUrl;
